@@ -13,6 +13,24 @@ const execFileAsync = promisify(execFile);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Check Inkscape availability at startup
+let inkscapeAvailable = false;
+async function checkInkscape() {
+  try {
+    await execFileAsync('inkscape', ['--version']);
+    inkscapeAvailable = true;
+    console.log('✓ Inkscape is installed and available');
+  } catch (err) {
+    inkscapeAvailable = false;
+    console.error('✗ WARNING: Inkscape is not installed or not available in PATH');
+    console.error('  The conversion service will not work without Inkscape.');
+    console.error('  Installation instructions:');
+    console.error('    - Ubuntu/Debian: sudo apt-get install inkscape');
+    console.error('    - macOS: brew install inkscape');
+    console.error('    - Windows: Download from https://inkscape.org/release/');
+  }
+}
+
 // Rate limiting to prevent DoS attacks
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -43,7 +61,16 @@ app.use(express.json());
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'AI to SVG conversion service is running' });
+  res.json({ 
+    status: 'ok', 
+    message: 'AI to SVG conversion service is running',
+    inkscape: {
+      available: inkscapeAvailable,
+      message: inkscapeAvailable 
+        ? 'Inkscape is installed and ready' 
+        : 'Inkscape is not installed. Install it to enable conversions.'
+    }
+  });
 });
 
 // Validate and sanitize file path to prevent path traversal
@@ -164,7 +191,13 @@ app.post('/convert', limiter, upload.single('file'), async (req, res) => {
       await execFileAsync('inkscape', ['--version']);
     } catch (err) {
       return res.status(500).json({ 
-        error: 'Inkscape is not installed or not available in PATH' 
+        error: 'Inkscape is not installed or not available in PATH',
+        help: 'Please install Inkscape to use this service',
+        instructions: {
+          ubuntu: 'sudo apt-get install inkscape',
+          macos: 'brew install inkscape',
+          windows: 'Download from https://inkscape.org/release/'
+        }
       });
     }
 
@@ -208,8 +241,11 @@ app.use((error, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`AI to SVG conversion server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Convert endpoint: POST http://localhost:${PORT}/convert`);
+  
+  // Check Inkscape availability on startup
+  await checkInkscape();
 });
