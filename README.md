@@ -9,6 +9,12 @@ Express.js server that converts Adobe Illustrator (.ai) files to SVG format usin
 - RESTful API with file upload support
 - Docker support for easy deployment
 - Designed for Dokploy deployment
+- Built-in security features:
+  - Rate limiting to prevent DoS attacks (10 requests per 15 minutes per IP)
+  - Command injection prevention using execFile
+  - Path traversal protection
+  - File size limits (50MB max)
+  - CORS enabled for frontend integration
 
 ## Prerequisites
 
@@ -135,6 +141,35 @@ console.log(result.svgs); // Array of SVG strings
   "message": "Detailed error message"
 }
 ```
+
+429 Too Many Requests - Rate limit exceeded:
+```json
+{
+  "error": "Too many conversion requests from this IP, please try again later."
+}
+```
+
+## Security
+
+This service implements several security measures:
+
+### Rate Limiting
+- 10 requests per 15 minutes per IP address
+- Prevents denial-of-service attacks
+- Applies to the `/convert` endpoint
+
+### Command Injection Prevention
+- Uses `execFile` instead of `exec` to prevent shell command injection
+- File paths are validated and sanitized
+
+### Path Traversal Protection
+- All file paths are validated to ensure they stay within the temp directory
+- Prevents unauthorized file system access
+
+### Input Validation
+- File type validation (only .ai files accepted)
+- File size limit (50MB maximum)
+- Proper MIME type checking
 
 ## Docker Deployment
 

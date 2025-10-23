@@ -1,16 +1,26 @@
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
-const { exec } = require('child_process');
+const rateLimit = require('express-rate-limit');
+const { execFile } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Rate limiting to prevent DoS attacks
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per windowMs
+  message: 'Too many conversion requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Configure multer for file uploads
 const upload = multer({
@@ -36,17 +46,34 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'AI to SVG conversion service is running' });
 });
 
+// Validate and sanitize file path to prevent path traversal
+function validateFilePath(filePath) {
+  const resolvedPath = path.resolve(filePath);
+  const tmpDir = os.tmpdir();
+  
+  // Ensure the file is within temp directory
+  if (!resolvedPath.startsWith(tmpDir)) {
+    throw new Error('Invalid file path');
+  }
+  
+  return resolvedPath;
+}
+
 // Convert .ai file to SVG
 async function convertAiToSvg(inputPath) {
+  // Validate input path to prevent path injection
+  const safeInputPath = validateFilePath(inputPath);
+  
   const outputDir = path.join(os.tmpdir(), `svg-output-${Date.now()}`);
   await fs.mkdir(outputDir, { recursive: true });
 
   try {
-    // First, check how many pages the file has
-    // Inkscape can query PDF/AI files for page count
-    const { stdout: queryOutput } = await execAsync(
-      `inkscape --query-all "${inputPath}" 2>&1 || true`
-    );
+    // First, check how many pages the file has using execFile for security
+    try {
+      await execFileAsync('inkscape', ['--query-all', safeInputPath]);
+    } catch (err) {
+      // Query may fail, continue with conversion
+    }
 
     // Try to convert the file - Inkscape may handle multiple pages differently
     // We'll attempt to export each page separately
@@ -58,12 +85,21 @@ async function convertAiToSvg(inputPath) {
       const outputPath = path.join(outputDir, `page-${pageIndex}.svg`);
       
       try {
-        // Try to export specific page
-        const command = pageIndex === 0 
-          ? `inkscape "${inputPath}" --export-filename="${outputPath}" --export-type=svg`
-          : `inkscape "${inputPath}" --pdf-page=${pageIndex + 1} --export-filename="${outputPath}" --export-type=svg 2>&1`;
-
-        const { stdout, stderr } = await execAsync(command);
+        // Try to export specific page using execFile to prevent command injection
+        if (pageIndex === 0) {
+          await execFileAsync('inkscape', [
+            safeInputPath,
+            `--export-filename=${outputPath}`,
+            '--export-type=svg'
+          ]);
+        } else {
+          await execFileAsync('inkscape', [
+            safeInputPath,
+            `--pdf-page=${pageIndex + 1}`,
+            `--export-filename=${outputPath}`,
+            '--export-type=svg'
+          ]);
+        }
         
         // Check if file was created
         try {
@@ -90,7 +126,10 @@ async function convertAiToSvg(inputPath) {
     // If no pages were converted, try a simpler approach
     if (svgResults.length === 0) {
       const outputPath = path.join(outputDir, 'output.svg');
-      await execAsync(`inkscape "${inputPath}" --export-plain-svg="${outputPath}"`);
+      await execFileAsync('inkscape', [
+        safeInputPath,
+        `--export-plain-svg=${outputPath}`
+      ]);
       
       const svgContent = await fs.readFile(outputPath, 'utf-8');
       svgResults.push(svgContent);
@@ -107,18 +146,21 @@ async function convertAiToSvg(inputPath) {
   }
 }
 
-// Main conversion endpoint
-app.post('/convert', upload.single('file'), async (req, res) => {
+// Main conversion endpoint with rate limiting
+app.post('/convert', limiter, upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const filePath = req.file.path;
+  let filePath = req.file.path;
 
   try {
+    // Validate file path to prevent path injection
+    filePath = validateFilePath(filePath);
+    
     // Check if Inkscape is installed
     try {
-      await execAsync('inkscape --version');
+      await execFileAsync('inkscape', ['--version']);
     } catch (err) {
       return res.status(500).json({ 
         error: 'Inkscape is not installed or not available in PATH' 
