@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI to SVG Converter - Example Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .upload-section {
+            margin: 20px 0;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .result-section {
+            margin-top: 20px;
+        }
+        .svg-preview {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+            max-height: 400px;
+            overflow: auto;
+        }
+        .error {
+            color: red;
+            padding: 10px;
+            background-color: #ffe6e6;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            padding: 10px;
+            background-color: #e6ffe6;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .loading {
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI to SVG Converter</h1>
+        <p>Upload an Adobe Illustrator (.ai) file to convert it to SVG format.</p>
+        
+        <div class="upload-section">
+            <label for="fileInput">Select .ai file:</label><br>
+            <input type="file" id="fileInput" accept=".ai" />
+            <br><br>
+            <button id="convertBtn" onclick="convertFile()">Convert to SVG</button>
+        </div>
+
+        <div id="status"></div>
+
+        <div class="result-section" id="resultSection" style="display: none;">
+            <h2>Results</h2>
+            <div id="results"></div>
+        </div>
+    </div>
+
+    <script>
+        // Change this to your server URL
+        const SERVER_URL = 'http://localhost:3000';
+
+        async function convertFile() {
+            const fileInput = document.getElementById('fileInput');
+            const convertBtn = document.getElementById('convertBtn');
+            const statusDiv = document.getElementById('status');
+            const resultSection = document.getElementById('resultSection');
+            const resultsDiv = document.getElementById('results');
+
+            // Clear previous results
+            statusDiv.innerHTML = '';
+            resultsDiv.innerHTML = '';
+            resultSection.style.display = 'none';
+
+            // Validate file selection
+            if (!fileInput.files || fileInput.files.length === 0) {
+                statusDiv.innerHTML = '<div class="error">Please select a file first.</div>';
+                return;
+            }
+
+            const file = fileInput.files[0];
+
+            // Validate file extension
+            if (!file.name.toLowerCase().endsWith('.ai')) {
+                statusDiv.innerHTML = '<div class="error">Please select a valid .ai file.</div>';
+                return;
+            }
+
+            // Disable button and show loading
+            convertBtn.disabled = true;
+            statusDiv.innerHTML = '<div class="loading">Converting file... Please wait.</div>';
+
+            try {
+                // Create FormData and append file
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Send request to server
+                const response = await fetch(`${SERVER_URL}/convert`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || data.message || 'Conversion failed');
+                }
+
+                // Show success message
+                statusDiv.innerHTML = `<div class="success">Successfully converted! Found ${data.count} page(s).</div>`;
+
+                // Display SVGs
+                resultSection.style.display = 'block';
+                data.svgs.forEach((svg, index) => {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'svg-preview';
+                    
+                    const title = document.createElement('h3');
+                    title.textContent = `Page ${index + 1}`;
+                    
+                    const svgContainer = document.createElement('div');
+                    svgContainer.innerHTML = svg;
+                    
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.textContent = `Download Page ${index + 1}`;
+                    downloadBtn.onclick = () => downloadSVG(svg, `page-${index + 1}.svg`);
+                    downloadBtn.style.marginTop = '10px';
+                    
+                    pageDiv.appendChild(title);
+                    pageDiv.appendChild(svgContainer);
+                    pageDiv.appendChild(downloadBtn);
+                    resultsDiv.appendChild(pageDiv);
+                });
+
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('Conversion error:', error);
+            } finally {
+                // Re-enable button
+                convertBtn.disabled = false;
+            }
+        }
+
+        function downloadSVG(svgContent, filename) {
+            const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Allow Enter key to trigger conversion
+        document.getElementById('fileInput').addEventListener('change', function() {
+            document.getElementById('convertBtn').focus();
+        });
+    </script>
+</body>
+</html>

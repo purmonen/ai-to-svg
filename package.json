@@ -1,0 +1,25 @@
+{
+  "name": "ai-to-svg",
+  "version": "1.0.0",
+  "description": "Express server to convert Adobe Illustrator (.ai) files to SVG using Inkscape",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ai",
+    "svg",
+    "inkscape",
+    "conversion",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "multer": "^2.0.2"
+  }
+}
