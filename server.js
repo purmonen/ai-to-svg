@@ -152,11 +152,12 @@ app.post('/convert', limiter, upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  let filePath = req.file.path;
+  const uploadedFilePath = req.file.path;
+  let validatedFilePath = null;
 
   try {
     // Validate file path to prevent path injection
-    filePath = validateFilePath(filePath);
+    validatedFilePath = validateFilePath(uploadedFilePath);
     
     // Check if Inkscape is installed
     try {
@@ -168,7 +169,7 @@ app.post('/convert', limiter, upload.single('file'), async (req, res) => {
     }
 
     // Convert the file
-    const svgArray = await convertAiToSvg(filePath);
+    const svgArray = await convertAiToSvg(validatedFilePath);
 
     // Return the SVG array
     res.json({
@@ -184,9 +185,10 @@ app.post('/convert', limiter, upload.single('file'), async (req, res) => {
       message: error.message 
     });
   } finally {
-    // Cleanup uploaded file
+    // Cleanup uploaded file - use validated path if available, otherwise original
+    const pathToDelete = validatedFilePath || uploadedFilePath;
     try {
-      await fs.unlink(filePath);
+      await fs.unlink(pathToDelete);
     } catch (err) {
       console.error('Error deleting uploaded file:', err);
     }
