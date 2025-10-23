@@ -1,6 +1,24 @@
 # Quick Start Guide
 
-## Local Development
+## Recommended: Docker Deployment
+
+The easiest and most reliable way to run this service is with Docker, which includes all dependencies:
+
+```bash
+docker build -t ai-to-svg .
+docker run -p 3000:3000 ai-to-svg
+```
+
+Or use docker-compose:
+```bash
+docker-compose up
+```
+
+The service will be available at http://localhost:3000
+
+## Alternative: Local Development
+
+> **Note:** Local development requires manual installation of Inkscape. We recommend using Docker instead.
 
 1. Install dependencies:
 ```bash
@@ -24,19 +42,6 @@ npm start
 4. Test the server:
 ```bash
 curl http://localhost:3000/health
-```
-
-## Docker Deployment
-
-Build and run with Docker:
-```bash
-docker build -t ai-to-svg .
-docker run -p 3000:3000 ai-to-svg
-```
-
-Or use docker-compose:
-```bash
-docker-compose up
 ```
 
 ## Dokploy Deployment
@@ -78,7 +83,9 @@ Key points:
 
 ## Troubleshooting
 
-**"Inkscape is not installed"**: Make sure Inkscape is available in your system PATH.
+**"Inkscape is not installed"**: 
+- **Recommended solution**: Use Docker which includes Inkscape automatically
+- **Alternative**: Install Inkscape locally and ensure it's available in your system PATH
 
 **Rate limit errors**: The service limits requests to 10 per 15 minutes per IP address. Wait or deploy your own instance.
 
