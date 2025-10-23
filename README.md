@@ -16,7 +16,20 @@ Express.js server that converts Adobe Illustrator (.ai) files to SVG format usin
   - File size limits (50MB max)
   - CORS enabled for frontend integration
 
-## Prerequisites
+## Quick Start (Recommended)
+
+**The easiest way to run this service is with Docker**, which includes all dependencies (Node.js and Inkscape):
+
+```bash
+docker build -t ai-to-svg .
+docker run -p 3000:3000 ai-to-svg
+```
+
+The service will be available at http://localhost:3000
+
+## Prerequisites for Local Development
+
+If you prefer to run without Docker, you'll need:
 
 - Node.js 18+ and npm
 - Inkscape installed on the system
@@ -37,7 +50,9 @@ brew install inkscape
 **Windows:**
 Download from [Inkscape official website](https://inkscape.org/release/)
 
-## Installation
+## Installation (Local Development)
+
+> **Note:** For most users, we recommend using Docker (see Quick Start above) to avoid manual installation of dependencies.
 
 1. Clone the repository:
 ```bash
