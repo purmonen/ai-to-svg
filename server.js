@@ -156,7 +156,8 @@ async function convertAiToSvg(inputPath) {
       try {
         await execFileAsync('inkscape', [
           safeInputPath,
-          `--export-plain-svg=${outputPath}`
+          '--export-plain-svg',
+          `--export-filename=${outputPath}`
         ]);
         
         // Check if the file was created before trying to read it
