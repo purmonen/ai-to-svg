@@ -3,8 +3,9 @@ FROM node:20-slim
 # Avoid prompts from apt
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Inkscape
-RUN apt-get update && apt-get install -y \
+# Install Inkscape and its dependencies
+# Using --install-recommends to ensure all necessary tools for AI file conversion are available
+RUN apt-get update && apt-get install -y --install-recommends \
     inkscape \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
