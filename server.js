@@ -103,7 +103,7 @@ async function convertAiToSvg(inputPath) {
     }
 
     // Try to convert the file - Inkscape may handle multiple pages differently
-    // We'll attempt to export each page separately
+    // We'll attempt to export each page separately  
     const svgResults = [];
     let pageIndex = 0;
     let hasMorePages = true;
@@ -139,8 +139,15 @@ async function convertAiToSvg(inputPath) {
           const stats = await fs.stat(outputPath);
           if (stats.size > 0) {
             const svgContent = await fs.readFile(outputPath, 'utf-8');
-            svgResults.push(svgContent);
-            pageIndex++;
+            
+            // For pages after the first, check if content is identical to prevent infinite loops
+            // SVG/AI files don't support multi-page like PDFs, so same content means we're done
+            if (pageIndex > 0 && svgContent === svgResults[0]) {
+              hasMorePages = false;
+            } else {
+              svgResults.push(svgContent);
+              pageIndex++;
+            }
           } else {
             hasMorePages = false;
           }
