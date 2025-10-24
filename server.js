@@ -103,7 +103,7 @@ async function convertAiToSvg(inputPath) {
     }
 
     // Try to convert the file - Inkscape may handle multiple pages differently
-    // We'll attempt to export each page separately
+    // We'll attempt to export each page separately  
     const svgResults = [];
     let pageIndex = 0;
     let hasMorePages = true;
@@ -113,19 +113,25 @@ async function convertAiToSvg(inputPath) {
       
       try {
         // Try to export specific page using execFile to prevent command injection
+        const inkscapeArgs = pageIndex === 0 
+          ? [
+              safeInputPath,
+              `--export-filename=${outputPath}`,
+              '--export-type=svg'
+            ]
+          : [
+              safeInputPath,
+              `--pdf-page=${pageIndex + 1}`,
+              `--export-filename=${outputPath}`,
+              '--export-type=svg'
+            ];
+        
+        const result = await execFileAsync('inkscape', inkscapeArgs);
+        
+        // Log Inkscape output for debugging (only on first page to avoid spam)
         if (pageIndex === 0) {
-          await execFileAsync('inkscape', [
-            safeInputPath,
-            `--export-filename=${outputPath}`,
-            '--export-type=svg'
-          ]);
-        } else {
-          await execFileAsync('inkscape', [
-            safeInputPath,
-            `--pdf-page=${pageIndex + 1}`,
-            `--export-filename=${outputPath}`,
-            '--export-type=svg'
-          ]);
+          if (result.stdout) console.log('Inkscape stdout:', result.stdout);
+          if (result.stderr) console.log('Inkscape stderr:', result.stderr);
         }
         
         // Check if file was created
@@ -133,8 +139,15 @@ async function convertAiToSvg(inputPath) {
           const stats = await fs.stat(outputPath);
           if (stats.size > 0) {
             const svgContent = await fs.readFile(outputPath, 'utf-8');
-            svgResults.push(svgContent);
-            pageIndex++;
+            
+            // For pages after the first, check if content is identical to prevent infinite loops
+            // SVG/AI files don't support multi-page like PDFs, so same content means we're done
+            if (pageIndex > 0 && svgContent === svgResults[0]) {
+              hasMorePages = false;
+            } else {
+              svgResults.push(svgContent);
+              pageIndex++;
+            }
           } else {
             hasMorePages = false;
           }
@@ -144,7 +157,8 @@ async function convertAiToSvg(inputPath) {
       } catch (error) {
         // If error on first page, it's a real error, otherwise we're done
         if (pageIndex === 0) {
-          throw new Error(`Inkscape conversion failed: ${error.message}`);
+          const errorDetails = error.stderr ? `\nInkscape error: ${error.stderr}` : '';
+          throw new Error(`Inkscape conversion failed: ${error.message}${errorDetails}`);
         }
         hasMorePages = false;
       }
@@ -154,11 +168,19 @@ async function convertAiToSvg(inputPath) {
     if (svgResults.length === 0) {
       const outputPath = path.join(outputDir, 'output.svg');
       try {
-        await execFileAsync('inkscape', [
+        // Use consistent Inkscape 1.0+ syntax
+        const inkscapeArgs = [
           safeInputPath,
-          '--export-plain-svg',
+          '--export-type=svg',
           `--export-filename=${outputPath}`
-        ]);
+        ];
+        
+        console.log('Running Inkscape with args:', inkscapeArgs);
+        const result = await execFileAsync('inkscape', inkscapeArgs);
+        
+        // Log Inkscape output for debugging
+        if (result.stdout) console.log('Inkscape stdout:', result.stdout);
+        if (result.stderr) console.log('Inkscape stderr:', result.stderr);
         
         // Check if the file was created before trying to read it
         try {
@@ -170,9 +192,12 @@ async function convertAiToSvg(inputPath) {
           throw new Error('Inkscape failed to create output file. The .ai file may be corrupted or in an unsupported format.');
         }
       } catch (error) {
+        // Capture stderr for better error reporting
+        const errorDetails = error.stderr ? `\nInkscape error: ${error.stderr}` : '';
+        
         // If this fallback also fails, provide a helpful error message
         if (!error.message.includes('Inkscape failed to create output file')) {
-          throw new Error(`Inkscape conversion failed: ${error.message}`);
+          throw new Error(`Inkscape conversion failed: ${error.message}${errorDetails}`);
         }
         throw error;
       }
