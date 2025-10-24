@@ -153,13 +153,28 @@ async function convertAiToSvg(inputPath) {
     // If no pages were converted, try a simpler approach
     if (svgResults.length === 0) {
       const outputPath = path.join(outputDir, 'output.svg');
-      await execFileAsync('inkscape', [
-        safeInputPath,
-        `--export-plain-svg=${outputPath}`
-      ]);
-      
-      const svgContent = await fs.readFile(outputPath, 'utf-8');
-      svgResults.push(svgContent);
+      try {
+        await execFileAsync('inkscape', [
+          safeInputPath,
+          `--export-plain-svg=${outputPath}`
+        ]);
+        
+        // Check if the file was created before trying to read it
+        try {
+          await fs.access(outputPath);
+          const svgContent = await fs.readFile(outputPath, 'utf-8');
+          svgResults.push(svgContent);
+        } catch (err) {
+          // File wasn't created, throw a more informative error
+          throw new Error('Inkscape failed to create output file. The .ai file may be corrupted or in an unsupported format.');
+        }
+      } catch (error) {
+        // If this fallback also fails, provide a helpful error message
+        if (!error.message.includes('Inkscape failed to create output file')) {
+          throw new Error(`Inkscape conversion failed: ${error.message}`);
+        }
+        throw error;
+      }
     }
 
     return svgResults;
